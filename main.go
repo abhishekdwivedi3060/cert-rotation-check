@@ -36,16 +36,16 @@ type cert struct {
 }
 
 func init() {
-	flag.StringVar(&caDurationFlag, "ca-duration", "1095d", "duration of ca cert")
-	flag.StringVar(&caExpiryFlag, "ca-expiry", "28d", "duration of ca cert")
+	flag.StringVar(&caDurationFlag, "ca-duration", "1095d", "duration of ca cert. Defaults to 1095d (3 years)")
+	flag.StringVar(&caExpiryFlag, "ca-expiry", "28d", "duration of ca cert. Defaults to 28d")
 
-	flag.StringVar(&nodeDurationFlag, "node-duration", "365d", "duration of ca cert")
-	flag.StringVar(&nodeExpiryFlag, "node-expiry", "7d", "duration of ca cert")
+	flag.StringVar(&nodeDurationFlag, "node-duration", "365d", "duration of ca cert. Defaults to 365h (1 year)")
+	flag.StringVar(&nodeExpiryFlag, "node-expiry", "7d", "duration of ca cert. Defaults to 7d")
 
-	flag.StringVar(&clientDurationFlag, "client-duration", "30d", "duration of ca cert")
-	flag.StringVar(&clientExpiryFlag, "client-expiry", "2d", "duration of ca cert")
+	flag.StringVar(&clientDurationFlag, "client-duration", "30d", "duration of ca cert. Defaults to 30d")
+	flag.StringVar(&clientExpiryFlag, "client-expiry", "2d", "duration of ca cert. Defaults to 2d")
 
-	flag.StringVar(&minCertDurationFlag, "min-cert-duration", "27d", "duration of ca cert")
+	flag.StringVar(&minCertDurationFlag, "min-cert-duration", "27d", "duration of ca cert. Defaults to 27d")
 }
 
 func main() {
@@ -109,6 +109,9 @@ func main() {
 
 	log.Print("=============================================================================================")
 
+	delta:= time.Time{}
+	delta = delta.Add(1 * time.Hour)
+
 	i := 1
 	for t := time.Now().Add(minCertDuration); ; {
 
@@ -119,14 +122,16 @@ func main() {
 			log.Info("Rotating client cert")
 			newDuration := t.Add(clientCert.Duration)
 
-			// if new client cert outlives CA cert life then fail
+			// if new client cert outlives CA cert life then create client cert valid till CA Duration minus delta
 			if newDuration.After(caCert.ValidTo) {
-				log.Errorf("client cert outlives CA cert if rotated. New client cert life [%s], CA cert [%s]",
-					newDuration.Format(time.Stamp), caCert.ValidTo.Format(time.Stamp))
-				break
+
+				clientCert.ValidTo = caCert.ValidTo.Add(-1 * time.Hour)
+			} else {
+				clientCert.ValidTo = newDuration
 			}
-			clientCert.ValidTo = newDuration
+
 			clientCert.ValidFrom = t
+
 			log.Infof("Rotated client cert at    [%s]", t.Format(time.Stamp))
 			log.Infof("New client cert validTill [%s]\n\n", clientCert.ValidTo.Format(time.Stamp))
 
@@ -138,15 +143,15 @@ func main() {
 
 			newDuration := t.Add(nodeCert.Duration)
 
-			// if new client cert outlives CA cert life then fail
+			// if new client cert outlives CA cert life then node cert valid till CA Duration minus delta
 			if newDuration.After(caCert.ValidTo) {
-				log.Errorf("node cert outlives CA cert if rotated. New node cert life [%s], CA cert [%s]",
-					newDuration.Format(time.Stamp), caCert.ValidTo.Format(time.Stamp))
-				break
+				nodeCert.ValidTo = caCert.ValidTo.Add(-1 * time.Hour)
+			} else {
+				nodeCert.ValidTo = newDuration
 			}
 
-			nodeCert.ValidTo = newDuration
 			nodeCert.ValidFrom = t
+
 			log.Infof("Rotated node cert at      [%s]", t.Format(time.Stamp))
 			log.Infof("New node cert validTill   [%s]\n\n", nodeCert.ValidTo.Format(time.Stamp))
 		}
@@ -170,7 +175,7 @@ func main() {
 
 		log.Print("=============================================================================================")
 		i++
-		if i == 20 {
+		if i == 30 {
 			log.Info("Cert rotation will work with these values, verification passed. Exiting")
 			os.Exit(1)
 		}
